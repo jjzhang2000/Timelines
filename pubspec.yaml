@@ -1,0 +1,35 @@
+name: timelines
+description: "通用历史时间线框架"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+  intl: ^0.20.2
+  shared_preferences: ^2.5.5
+  flutter_markdown: ^0.7.0
+  flutter_widget_from_html: ^0.15.0
+  path_provider: ^2.1.0
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.0
+  riverpod_generator: ^2.6.3
+
+flutter:
+  uses-material-design: true
+  generate: true
+
+  assets:
+    - data/

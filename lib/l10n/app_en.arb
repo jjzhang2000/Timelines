@@ -1,0 +1,23 @@
+{
+  "@@locale": "en",
+  "appTitle": "Timelines",
+  "search": "Search",
+  "filter": "Filter",
+  "mergedView": "Merged View",
+  "compareView": "Compare View",
+  "selectAll": "Select All",
+  "deselectAll": "Deselect All",
+  "detail": "Detail",
+  "loading": "Loading...",
+  "error": "Error",
+  "retry": "Retry",
+  "noData": "No data available",
+  "eventsCount": "{count} events",
+  "@eventsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "@@locale": "zh",
+  "appTitle": "时间线",
+  "search": "搜索",
+  "filter": "筛选",
+  "mergedView": "合并视图",
+  "compareView": "对比视图",
+  "selectAll": "全选",
+  "deselectAll": "全不选",
+  "detail": "详情",
+  "loading": "加载中...",
+  "error": "错误",
+  "retry": "重试",
+  "noData": "暂无数据",
+  "eventsCount": "{count} 个事件",
+  "@eventsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
+}
