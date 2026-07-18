@@ -110,4 +110,5 @@ coverage/
 *.lcov
 
 # Trae
-.trae/
+.trae/*
+!.trae/documents/
