@@ -17,34 +17,23 @@ class SummaryBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(entry.label, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        if (entry.summary != null)
+          MarkdownBody(data: entry.summary!, selectable: true),
+        const SizedBox(height: 14),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: onDetailTap,
+            child: Text(l10n.detail),
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(entry.label, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
-          if (entry.summary != null)
-            MarkdownBody(data: entry.summary!, selectable: true),
-          const SizedBox(height: 16),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(onPressed: onDetailTap, child: Text(l10n.detail)),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

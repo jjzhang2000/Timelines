@@ -1,0 +1,93 @@
+{
+  "metadata": {
+    "name": "三国演义",
+    "version": "1.0",
+    "description": "三国演义重要事件时间线",
+    "colorScheme": {
+      "primary": "#C62828",
+      "secondary": "#FFA000"
+    }
+  },
+  "events": [
+    {
+      "date": 184,
+      "label": "黄巾起义",
+      "summary": "张角兄弟领导的农民起义，东汉王朝开始走向衰亡",
+      "type": "incident",
+      "background": [139, 0, 0],
+      "accent": [255, 215, 0]
+    },
+    {
+      "date": 190,
+      "label": "讨伐董卓",
+      "summary": "十八路诸侯会盟讨董，董卓焚洛阳迁都长安",
+      "type": "incident",
+      "background": [75, 0, 130],
+      "accent": [255, 140, 0]
+    },
+    {
+      "date": 200,
+      "label": "官渡之战",
+      "summary": "曹操以少胜多大败袁绍，奠定统一北方基础",
+      "type": "incident",
+      "background": [0, 100, 0],
+      "accent": [144, 238, 144]
+    },
+    {
+      "date": 207,
+      "label": "三顾茅庐",
+      "summary": "刘备三顾草庐请诸葛亮出山，隆中对三分天下",
+      "type": "incident",
+      "background": [25, 25, 112],
+      "accent": [173, 216, 230]
+    },
+    {
+      "date": 208,
+      "label": "赤壁之战",
+      "summary": "孙刘联军火烧赤壁大败曹军，三分天下格局形成",
+      "type": "incident",
+      "background": [178, 34, 34],
+      "accent": [255, 69, 0]
+    },
+    {
+      "date": 219,
+      "label": "关羽失荆州",
+      "summary": "关羽水淹七军威震华夏，后败走麦城被擒杀",
+      "type": "incident",
+      "background": [85, 107, 47],
+      "accent": [255, 255, 0]
+    },
+    {
+      "date": 221,
+      "label": "夷陵之战",
+      "summary": "刘备为关羽报仇伐吴，被陆逊火烧连营大败",
+      "type": "incident",
+      "background": [160, 82, 45],
+      "accent": [255, 165, 0]
+    },
+    {
+      "date": 225,
+      "label": "七擒孟获",
+      "summary": "诸葛亮南征平定南中，七擒七纵收服孟获",
+      "type": "incident",
+      "background": [34, 139, 34],
+      "accent": [124, 179, 66]
+    },
+    {
+      "date": 228,
+      "label": "六出祁山",
+      "summary": "诸葛亮北伐中原，鞠躬尽瘁死而后已，星落五丈原",
+      "type": "incident",
+      "background": [70, 130, 180],
+      "accent": [255, 255, 255]
+    },
+    {
+      "date": 263,
+      "label": "三国归晋",
+      "summary": "司马炎代魏建晋，先后灭蜀吴，三国归于一统",
+      "type": "incident",
+      "background": [47, 79, 79],
+      "accent": [192, 192, 192]
+    }
+  ]
+}

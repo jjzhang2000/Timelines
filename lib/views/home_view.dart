@@ -31,6 +31,12 @@ class _HomeViewState extends ConsumerState<HomeView> {
     final viewModeState = ref.watch(viewModeNotifierProvider);
     final l10n = AppLocalizations.of(context);
 
+    ref.listen<DataSourceState>(dataSourceNotifierProvider, (prev, next) {
+      if (next.status == LoadingStatus.success && prev?.status != LoadingStatus.success) {
+        _initializeFilter(next.sources.map((s) => s.id).toList());
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.appTitle),
@@ -105,8 +111,6 @@ class _HomeViewState extends ConsumerState<HomeView> {
         if (dataSourceState.sources.isEmpty) {
           return Center(child: Text(l10n.noData));
         }
-
-        _initializeFilter(dataSourceState.sources.map((s) => s.id).toList());
 
         if (viewModeState.mode == ViewMode.compare) {
           return CompareView(sourceIds: viewModeState.compareSourceIds);

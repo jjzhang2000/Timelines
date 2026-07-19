@@ -61,7 +61,10 @@ class DataSourceNotifier extends _$DataSourceNotifier {
     state = DataSourceState.loading();
 
     try {
-      final service = DataLoaderService(dataDirectory: 'data');
+      final service = DataLoaderService(
+        dataDirectory: 'data',
+        configFile: 'data/data_sources.json',
+      );
 
       final sources = await service.discoverSources();
       state = DataSourceState.success(sources);

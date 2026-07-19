@@ -84,7 +84,7 @@ class _CompareViewState extends ConsumerState<CompareView> {
                   sourceColors: {
                     source.id: source.metadata.colorScheme.primary,
                   },
-                  onEntryTap: (entry) {
+                  onEntryTap: (entry, _) {
                     showModalBottomSheet(
                       context: context,
                       builder: (context) => SummaryBubble(
