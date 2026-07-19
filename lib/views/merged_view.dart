@@ -17,7 +17,6 @@ class MergedView extends ConsumerStatefulWidget {
 class _MergedViewState extends ConsumerState<MergedView>
     with SingleTickerProviderStateMixin {
   TimelineEntry? _selectedEntry;
-  Offset? _bubblePosition;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -25,7 +24,15 @@ class _MergedViewState extends ConsumerState<MergedView>
   bool _isOverflow = false;
   Alignment _scaleAlignment = Alignment.topLeft;
   final GlobalKey _bubbleKey = GlobalKey();
+
+  /// CompositedTransform 链接，用于气泡自动跟随标签
+  final LayerLink _layerLink = LayerLink();
+
+  /// 标签位置（用于初始溢出检测）
   Offset _labelPosition = Offset.zero;
+
+  /// 拖拽时暂时隐藏气泡，避免频繁重建
+  bool _isDragging = false;
 
   @override
   void initState() {
@@ -57,7 +64,6 @@ class _MergedViewState extends ConsumerState<MergedView>
     setState(() {
       _selectedEntry = entry;
       _labelPosition = position;
-      _bubblePosition = position;
       _isOverflow = false;
       _scaleAlignment = Alignment.topLeft;
     });
@@ -78,34 +84,23 @@ class _MergedViewState extends ConsumerState<MergedView>
 
     final bubbleSize = bubbleBox.size;
     final labelY = _labelPosition.dy;
-    final labelX = _labelPosition.dx;
 
     // 检查气泡放在标签下方是否会超出窗口底部
-    final wouldOverflow = labelY + 10 + bubbleSize.height > _windowSize.height;
+    final wouldOverflow = labelY + bubbleSize.height > _windowSize.height;
 
-    // 根据是否溢出计算气泡位置和缩放原点
-    double top;
+    // 根据是否溢出计算缩放原点
     Alignment alignment;
     if (wouldOverflow) {
-      // 气泡放在标签上方，箭头朝下
-      top = labelY - bubbleSize.height;
+      // 气泡在标签上方，箭头朝下
       alignment = Alignment.bottomLeft;
     } else {
-      // 气泡放在标签下方，箭头朝上
-      top = labelY + 10;
+      // 气泡在标签下方，箭头朝上
       alignment = Alignment.topLeft;
-    }
-
-    // 检查是否超出窗口右边界
-    double left = labelX + 50;
-    if (left + bubbleSize.width > _windowSize.width) {
-      left = _windowSize.width - bubbleSize.width - 10;
     }
 
     setState(() {
       _isOverflow = wouldOverflow;
       _scaleAlignment = alignment;
-      _bubblePosition = Offset(left, top);
     });
   }
 
@@ -114,10 +109,31 @@ class _MergedViewState extends ConsumerState<MergedView>
       if (mounted) {
         setState(() {
           _selectedEntry = null;
-          _bubblePosition = null;
         });
       }
     });
+  }
+
+  void _onTrackedLabelPositionChanged(Offset? labelPosition) {
+    if (_selectedEntry == null) return;
+    
+    if (labelPosition == null) {
+      // 标签离开视口，关闭气泡
+      _hideBubble();
+    }
+    // 位置跟随由 CompositedTransform 自动处理，无需手动更新
+  }
+
+  void _onDragStart() {
+    if (_selectedEntry != null) {
+      _isDragging = true;
+    }
+  }
+
+  void _onDragEnd() {
+    if (_isDragging) {
+      _isDragging = false;
+    }
   }
 
   @override
@@ -142,8 +158,18 @@ class _MergedViewState extends ConsumerState<MergedView>
                 ref.read(timelineNotifierProvider.notifier).selectEntry(index);
                 _showBubble(entry, labelPosition);
               },
+              onBlankTap: () {
+                if (_selectedEntry != null) {
+                  _hideBubble();
+                }
+              },
+              trackedEntry: _selectedEntry,
+              onTrackedLabelPositionChanged: _onTrackedLabelPositionChanged,
+              onDragStart: _onDragStart,
+              onDragEnd: _onDragEnd,
+              layerLink: _layerLink,
             ),
-            if (_selectedEntry != null && _bubblePosition != null)
+            if (_selectedEntry != null && !_isDragging)
               _buildBubble(),
           ],
         );
@@ -156,18 +182,19 @@ class _MergedViewState extends ConsumerState<MergedView>
     const cornerRadius = 16.0;
     const arrowSize = 12.0;
 
-    // Arrow direction: if bubble is above label (overflow), arrow points down
     final arrowUp = !_isOverflow;
-
-    double left = _bubblePosition!.dx;
-    double top = _bubblePosition!.dy;
 
     final bgColor = Theme.of(context).colorScheme.surface;
     final borderColor = Theme.of(context).dividerColor;
 
-    return Positioned(
-      left: left,
-      top: top,
+    return CompositedTransformFollower(
+      link: _layerLink,
+      showWhenUnlinked: false,
+      // 气泡在下方时：target 的 centerLeft 对齐 follower 的 topLeft
+      // 气泡在上方时：target 的 centerLeft 对齐 follower 的 bottomLeft
+      targetAnchor: Alignment.centerLeft,
+      followerAnchor: arrowUp ? Alignment.topLeft : Alignment.bottomLeft,
+      offset: Offset(0, 0),
       child: FadeTransition(
         opacity: _fadeAnimation,
         child: ScaleTransition(

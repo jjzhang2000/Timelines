@@ -8,6 +8,18 @@ class TimelineWidget extends StatefulWidget {
   final Map<String, Color> sourceColors;
   final ScrollController? scrollController;
   final void Function(TimelineEntry entry, Offset labelPosition)? onEntryTap;
+  /// 点击空白区域回调
+  final VoidCallback? onBlankTap;
+  /// 需要跟踪标签位置的条目（气泡跟随用）
+  final TimelineEntry? trackedEntry;
+  /// 跟踪条目的标签位置变化回调（位置为 null 表示离开视口）
+  final void Function(Offset? labelPosition)? onTrackedLabelPositionChanged;
+  /// 拖拽开始回调
+  final VoidCallback? onDragStart;
+  /// 拖拽结束回调
+  final VoidCallback? onDragEnd;
+  /// CompositedTransform 链接（用于气泡跟随）
+  final LayerLink? layerLink;
 
   const TimelineWidget({
     super.key,
@@ -15,6 +27,12 @@ class TimelineWidget extends StatefulWidget {
     this.sourceColors = const {},
     this.scrollController,
     this.onEntryTap,
+    this.onBlankTap,
+    this.trackedEntry,
+    this.onTrackedLabelPositionChanged,
+    this.onDragStart,
+    this.onDragEnd,
+    this.layerLink,
   });
 
   @override
@@ -24,6 +42,7 @@ class TimelineWidget extends StatefulWidget {
 class _TimelineWidgetState extends State<TimelineWidget> {
   late TimelineViewport _viewport;
   Size _canvasSize = Size.zero;
+  Offset? _lastNotifiedPosition;
 
   @override
   void initState() {
@@ -36,20 +55,69 @@ class _TimelineWidgetState extends State<TimelineWidget> {
     super.didUpdateWidget(oldWidget);
     // Recalculate layout when entries change
     _viewport.invalidateLayout();
+    // trackedEntry 变化时重置缓存
+    if (widget.trackedEntry != oldWidget.trackedEntry) {
+      _lastNotifiedPosition = null;
+    }
   }
 
   void _handleTap(Offset localPosition) {
-    if (widget.onEntryTap == null) return;
     final axisX = _canvasSize.width * 0.15;
     for (final entry in widget.entries) {
       final y = _viewport.dateToY(entry.date, _canvasSize.height);
       if ((localPosition.dy - y).abs() < 15) {
-        // 标签位置：canvas 内 axisX + 24, y
-        // 气泡应出现在标签右侧
         final labelX = axisX + 24;
         final labelY = y;
-        widget.onEntryTap!(entry, Offset(labelX, labelY));
+        widget.onEntryTap?.call(entry, Offset(labelX, labelY));
         return;
+      }
+    }
+    // 未命中任何标签，视为点击空白区域
+    widget.onBlankTap?.call();
+  }
+
+  void _notifyTrackedPosition({bool force = false}) {
+    if (widget.onTrackedLabelPositionChanged == null) return;
+    final tracked = widget.trackedEntry;
+    if (tracked == null) {
+      if (_lastNotifiedPosition != null) {
+        _lastNotifiedPosition = null;
+        widget.onTrackedLabelPositionChanged!(null);
+      }
+      return;
+    }
+
+    final y = _viewport.dateToY(tracked.date, _canvasSize.height);
+    Offset? newPosition;
+    
+    // 检查是否离开视口
+    if (y < -50 || y > _canvasSize.height + 50) {
+      newPosition = null;
+    } else {
+      final axisX = _canvasSize.width * 0.15;
+      newPosition = Offset(axisX + 24, y);
+    }
+
+    // 强制模式：无论位置是否变化都触发回调
+    if (force) {
+      _lastNotifiedPosition = newPosition;
+      widget.onTrackedLabelPositionChanged!(newPosition);
+      return;
+    }
+
+    // 只有位置真正变化时才通知（至少移动 1 像素）
+    if (_lastNotifiedPosition == null && newPosition != null) {
+      _lastNotifiedPosition = newPosition;
+      widget.onTrackedLabelPositionChanged!(newPosition);
+    } else if (_lastNotifiedPosition != null && newPosition == null) {
+      _lastNotifiedPosition = null;
+      widget.onTrackedLabelPositionChanged!(null);
+    } else if (_lastNotifiedPosition != null && newPosition != null) {
+      final dx = (newPosition.dx - _lastNotifiedPosition!.dx).abs();
+      final dy = (newPosition.dy - _lastNotifiedPosition!.dy).abs();
+      if (dx > 1.0 || dy > 1.0) {
+        _lastNotifiedPosition = newPosition;
+        widget.onTrackedLabelPositionChanged!(newPosition);
       }
     }
   }
@@ -63,30 +131,71 @@ class _TimelineWidgetState extends State<TimelineWidget> {
           // 滚轮缩放：向下滚放大，向上滚缩小
           final factor = event.scrollDelta.dy > 0 ? 1.1 : 0.9;
           _viewport.zoomBy(factor);
-          setState(() {});
+          setState(() {
+            _notifyTrackedPosition();
+          });
         }
       },
       child: GestureDetector(
           onTapUp: (details) {
             _handleTap(details.localPosition);
           },
+          onPanStart: (details) {
+            widget.onDragStart?.call();
+          },
           onPanUpdate: (details) {
             _viewport.scrollBy(-details.delta.dy);
-            setState(() {});
+            setState(() {
+              _notifyTrackedPosition();
+            });
+          },
+          onPanEnd: (details) {
+            // 先通知拖拽结束（重置 _isDragging）
+            widget.onDragEnd?.call();
+            // 延迟到下一帧再通知位置，确保气泡已渲染
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _lastNotifiedPosition = null;
+                _notifyTrackedPosition(force: true);
+              }
+            });
           },
         child: LayoutBuilder(
           builder: (context, constraints) {
             _canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
-            return CustomPaint(
-              painter: _TimelinePainter(
-                entries: widget.entries,
-                viewport: _viewport,
-                sourceColors: widget.sourceColors,
-                isDark: isDark,
-                scrollOffset: _viewport.scrollOffset,
-                zoomLevel: _viewport.zoomLevel,
-              ),
-              size: Size.infinite,
+            
+            // 计算跟踪标签的位置（用于 CompositedTransformTarget）
+            Offset? trackedLabelPosition;
+            if (widget.layerLink != null && widget.trackedEntry != null) {
+              final y = _viewport.dateToY(widget.trackedEntry!.date, _canvasSize.height);
+              final axisX = _canvasSize.width * 0.15;
+              trackedLabelPosition = Offset(axisX + 24, y);
+            }
+            
+            return Stack(
+              children: [
+                CustomPaint(
+                  painter: _TimelinePainter(
+                    entries: widget.entries,
+                    viewport: _viewport,
+                    sourceColors: widget.sourceColors,
+                    isDark: isDark,
+                    scrollOffset: _viewport.scrollOffset,
+                    zoomLevel: _viewport.zoomLevel,
+                  ),
+                  size: Size.infinite,
+                ),
+                // 添加 CompositedTransformTarget 用于气泡跟随
+                if (trackedLabelPosition != null && widget.layerLink != null)
+                  Positioned(
+                    left: trackedLabelPosition.dx,
+                    top: trackedLabelPosition.dy,
+                    child: CompositedTransformTarget(
+                      link: widget.layerLink!,
+                      child: const SizedBox(width: 0, height: 0),
+                    ),
+                  ),
+              ],
             );
           },
         ),
