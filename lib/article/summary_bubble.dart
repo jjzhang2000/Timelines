@@ -28,9 +28,16 @@ class SummaryBubble extends StatelessWidget {
         const SizedBox(height: 14),
         Align(
           alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: onDetailTap,
-            child: Text(l10n.detail),
+          child: Tooltip(
+            message: l10n.detail,
+            child: InkWell(
+              onTap: onDetailTap,
+              borderRadius: BorderRadius.circular(8),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.article_outlined, size: 20),
+              ),
+            ),
           ),
         ),
       ],

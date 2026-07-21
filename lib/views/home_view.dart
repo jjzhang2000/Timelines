@@ -54,6 +54,15 @@ class _HomeViewState extends ConsumerState<HomeView> {
           PopupMenuButton<ViewMode>(
             icon: const Icon(Icons.view_module),
             onSelected: (mode) {
+              if (mode == ViewMode.compare) {
+                // 切换到对比视图时，自动使用当前筛选可见的所有数据源
+                final filterState = ref.read(filterNotifierProvider);
+                final visibleSourceIds = dataSourceState.sources
+                    .where((s) => filterState.isVisible(s.id))
+                    .map((s) => s.id)
+                    .toList();
+                ref.read(viewModeNotifierProvider.notifier).setCompareSources(visibleSourceIds);
+              }
               ref.read(viewModeNotifierProvider.notifier).setMode(mode);
             },
             itemBuilder: (context) => [

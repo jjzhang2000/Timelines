@@ -13,13 +13,16 @@ class TimelineWidget extends StatefulWidget {
   /// 需要跟踪标签位置的条目（气泡跟随用）
   final TimelineEntry? trackedEntry;
   /// 跟踪条目的标签位置变化回调（位置为 null 表示离开视口）
-  final void Function(Offset? labelPosition)? onTrackedLabelPositionChanged;
+  /// 参数：标签位置（Offset）、标签宽度（double）
+  final void Function(Offset? labelPosition, double labelWidth)? onTrackedLabelPositionChanged;
   /// 拖拽开始回调
   final VoidCallback? onDragStart;
   /// 拖拽结束回调
   final VoidCallback? onDragEnd;
-  /// CompositedTransform 链接（用于气泡跟随）
-  final LayerLink? layerLink;
+  /// 共享的视口（用于多时间轴同步滚动/缩放）
+  final TimelineViewport? sharedViewport;
+  /// 视口变化回调（用于通知外部重建）
+  final VoidCallback? onViewportChanged;
 
   const TimelineWidget({
     super.key,
@@ -32,7 +35,8 @@ class TimelineWidget extends StatefulWidget {
     this.onTrackedLabelPositionChanged,
     this.onDragStart,
     this.onDragEnd,
-    this.layerLink,
+    this.sharedViewport,
+    this.onViewportChanged,
   });
 
   @override
@@ -40,14 +44,19 @@ class TimelineWidget extends StatefulWidget {
 }
 
 class _TimelineWidgetState extends State<TimelineWidget> {
-  late TimelineViewport _viewport;
+  TimelineViewport? _localViewport;
   Size _canvasSize = Size.zero;
   Offset? _lastNotifiedPosition;
+  double _lastNotifiedLabelWidth = 0;
+
+  TimelineViewport get _viewport => widget.sharedViewport ?? _localViewport!;
 
   @override
   void initState() {
     super.initState();
-    _viewport = TimelineViewport();
+    if (widget.sharedViewport == null) {
+      _localViewport = TimelineViewport();
+    }
   }
 
   @override
@@ -61,19 +70,86 @@ class _TimelineWidgetState extends State<TimelineWidget> {
     }
   }
 
-  void _handleTap(Offset localPosition) {
-    final axisX = _canvasSize.width * 0.15;
-    for (final entry in widget.entries) {
-      final y = _viewport.dateToY(entry.date, _canvasSize.height);
-      if ((localPosition.dy - y).abs() < 15) {
-        final labelX = axisX + 24;
-        final labelY = y;
-        widget.onEntryTap?.call(entry, Offset(labelX, labelY));
-        return;
+  void _notifyViewportChanged() {
+    widget.onViewportChanged?.call();
+  }
+
+  /// 计算每个条目的水平偏移量（相同日期的条目错开显示）
+  Map<TimelineEntry, double> _computeLabelOffsets(List<TimelineEntry> entries, double canvasWidth) {
+    final offsets = <TimelineEntry, double>{};
+    final dateGroups = <int, List<TimelineEntry>>{};
+    
+    // 按日期分组
+    for (final entry in entries) {
+      dateGroups.putIfAbsent(entry.date, () => []).add(entry);
+    }
+    
+    // 为相同日期的条目计算偏移
+    const offsetStep = 24.0; // 每个错开的间距
+    for (final group in dateGroups.values) {
+      if (group.length > 1) {
+        for (int i = 0; i < group.length; i++) {
+          offsets[group[i]] = i * offsetStep;
+        }
       }
     }
-    // 未命中任何标签，视为点击空白区域
-    widget.onBlankTap?.call();
+    
+    return offsets;
+  }
+
+  void _handleTap(Offset localPosition) {
+    final axisX = _canvasSize.width * 0.15;
+    final baseLabelX = axisX + 24;
+    final labelOffsets = _computeLabelOffsets(widget.entries, _canvasSize.width);
+
+    TimelineEntry? bestEntry;
+    double bestDistance = double.infinity;
+    Offset? bestPosition;
+
+    for (final entry in widget.entries) {
+      final y = _viewport.dateToY(entry.date, _canvasSize.height);
+      final dy = (localPosition.dy - y).abs();
+      if (dy < 15) {
+        final xOffset = labelOffsets[entry] ?? 0;
+        final labelStartX = baseLabelX + xOffset;
+
+        // 测量标签文本范围，同时检查 x 坐标
+        final tp = TextPainter(
+          text: TextSpan(
+            text: entry.label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: entry.type == EntryType.era
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: _canvasSize.width * 0.7);
+        final labelRight = labelStartX + tp.width;
+        tp.dispose();
+
+        // 点击必须在标签文本水平范围内（含少量容差）
+        if (localPosition.dx >= labelStartX - 8 &&
+            localPosition.dx <= labelRight + 8) {
+          // 使用欧几里得距离选择最近的标签
+          final dx = (localPosition.dx - (labelStartX + labelRight) / 2).abs();
+          final distance = dx * dx + dy * dy;
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestEntry = entry;
+            bestPosition = Offset(labelRight, y);
+          }
+        }
+      }
+    }
+
+    if (bestEntry != null) {
+      widget.onEntryTap?.call(bestEntry, bestPosition!);
+    } else {
+      // 未命中任何标签，视为点击空白区域
+      widget.onBlankTap?.call();
+    }
   }
 
   void _notifyTrackedPosition({bool force = false}) {
@@ -82,42 +158,67 @@ class _TimelineWidgetState extends State<TimelineWidget> {
     if (tracked == null) {
       if (_lastNotifiedPosition != null) {
         _lastNotifiedPosition = null;
-        widget.onTrackedLabelPositionChanged!(null);
+        widget.onTrackedLabelPositionChanged!(null, 0);
       }
       return;
     }
 
     final y = _viewport.dateToY(tracked.date, _canvasSize.height);
     Offset? newPosition;
-    
+    double labelWidth = 0;
+
     // 检查是否离开视口
     if (y < -50 || y > _canvasSize.height + 50) {
       newPosition = null;
     } else {
       final axisX = _canvasSize.width * 0.15;
-      newPosition = Offset(axisX + 24, y);
+      // 计算该条目的偏移量
+      final labelOffsets = _computeLabelOffsets(widget.entries, _canvasSize.width);
+      final xOffset = labelOffsets[tracked] ?? 0;
+
+      // 测量标签文本宽度
+      final tp = TextPainter(
+        text: TextSpan(
+          text: tracked.label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: tracked.type == EntryType.era
+                ? FontWeight.bold
+                : FontWeight.normal,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: _canvasSize.width * 0.7);
+      labelWidth = tp.width;
+      tp.dispose();
+
+      newPosition = Offset(axisX + 24 + xOffset, y);
     }
 
     // 强制模式：无论位置是否变化都触发回调
     if (force) {
       _lastNotifiedPosition = newPosition;
-      widget.onTrackedLabelPositionChanged!(newPosition);
+      _lastNotifiedLabelWidth = labelWidth;
+      widget.onTrackedLabelPositionChanged!(newPosition, labelWidth);
       return;
     }
 
     // 只有位置真正变化时才通知（至少移动 1 像素）
     if (_lastNotifiedPosition == null && newPosition != null) {
       _lastNotifiedPosition = newPosition;
-      widget.onTrackedLabelPositionChanged!(newPosition);
+      _lastNotifiedLabelWidth = labelWidth;
+      widget.onTrackedLabelPositionChanged!(newPosition, labelWidth);
     } else if (_lastNotifiedPosition != null && newPosition == null) {
       _lastNotifiedPosition = null;
-      widget.onTrackedLabelPositionChanged!(null);
+      _lastNotifiedLabelWidth = 0;
+      widget.onTrackedLabelPositionChanged!(null, 0);
     } else if (_lastNotifiedPosition != null && newPosition != null) {
       final dx = (newPosition.dx - _lastNotifiedPosition!.dx).abs();
       final dy = (newPosition.dy - _lastNotifiedPosition!.dy).abs();
-      if (dx > 1.0 || dy > 1.0) {
+      if (dx > 1.0 || dy > 1.0 || labelWidth != _lastNotifiedLabelWidth) {
         _lastNotifiedPosition = newPosition;
-        widget.onTrackedLabelPositionChanged!(newPosition);
+        _lastNotifiedLabelWidth = labelWidth;
+        widget.onTrackedLabelPositionChanged!(newPosition, labelWidth);
       }
     }
   }
@@ -131,9 +232,9 @@ class _TimelineWidgetState extends State<TimelineWidget> {
           // 滚轮缩放：向下滚放大，向上滚缩小
           final factor = event.scrollDelta.dy > 0 ? 1.1 : 0.9;
           _viewport.zoomBy(factor);
-          setState(() {
-            _notifyTrackedPosition();
-          });
+          setState(() {});
+          _notifyTrackedPosition(force: true);
+          _notifyViewportChanged();
         }
       },
       child: GestureDetector(
@@ -145,9 +246,9 @@ class _TimelineWidgetState extends State<TimelineWidget> {
           },
           onPanUpdate: (details) {
             _viewport.scrollBy(-details.delta.dy);
-            setState(() {
-              _notifyTrackedPosition();
-            });
+            setState(() {});
+            _notifyTrackedPosition(force: true);
+            _notifyViewportChanged();
           },
           onPanEnd: (details) {
             // 先通知拖拽结束（重置 _isDragging）
@@ -164,38 +265,21 @@ class _TimelineWidgetState extends State<TimelineWidget> {
           builder: (context, constraints) {
             _canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
             
-            // 计算跟踪标签的位置（用于 CompositedTransformTarget）
-            Offset? trackedLabelPosition;
-            if (widget.layerLink != null && widget.trackedEntry != null) {
-              final y = _viewport.dateToY(widget.trackedEntry!.date, _canvasSize.height);
-              final axisX = _canvasSize.width * 0.15;
-              trackedLabelPosition = Offset(axisX + 24, y);
-            }
+            // 计算所有标签的偏移量
+            final labelOffsets = _computeLabelOffsets(widget.entries, _canvasSize.width);
             
-            return Stack(
-              children: [
-                CustomPaint(
-                  painter: _TimelinePainter(
-                    entries: widget.entries,
-                    viewport: _viewport,
-                    sourceColors: widget.sourceColors,
-                    isDark: isDark,
-                    scrollOffset: _viewport.scrollOffset,
-                    zoomLevel: _viewport.zoomLevel,
-                  ),
-                  size: Size.infinite,
-                ),
-                // 添加 CompositedTransformTarget 用于气泡跟随
-                if (trackedLabelPosition != null && widget.layerLink != null)
-                  Positioned(
-                    left: trackedLabelPosition.dx,
-                    top: trackedLabelPosition.dy,
-                    child: CompositedTransformTarget(
-                      link: widget.layerLink!,
-                      child: const SizedBox(width: 0, height: 0),
-                    ),
-                  ),
-              ],
+            return CustomPaint(
+              painter: _TimelinePainter(
+                entries: widget.entries,
+                viewport: _viewport,
+                sourceColors: widget.sourceColors,
+                labelOffsets: labelOffsets,
+                isDark: isDark,
+                scrollOffset: _viewport.scrollOffset,
+                zoomLevel: _viewport.zoomLevel,
+                isSharedViewport: widget.sharedViewport != null,
+              ),
+              size: Size.infinite,
             );
           },
         ),
@@ -208,17 +292,21 @@ class _TimelinePainter extends CustomPainter {
   final List<TimelineEntry> entries;
   final TimelineViewport viewport;
   final Map<String, Color> sourceColors;
+  final Map<TimelineEntry, double> labelOffsets;
   final bool isDark;
   final double scrollOffset;
   final double zoomLevel;
+  final bool isSharedViewport;
 
   _TimelinePainter({
     required this.entries,
     required this.viewport,
     required this.sourceColors,
+    this.labelOffsets = const {},
     this.isDark = false,
     required this.scrollOffset,
     required this.zoomLevel,
+    this.isSharedViewport = false,
   });
 
   @override
@@ -226,10 +314,13 @@ class _TimelinePainter extends CustomPainter {
     if (entries.isEmpty) return;
 
     viewport.setViewportHeight(size.height);
-    viewport.setContentBounds(
-      entries.first.date.toDouble(),
-      entries.last.date.toDouble(),
-    );
+    // 共享视口时，由外部统一管理日期范围，避免相互覆盖
+    if (!isSharedViewport) {
+      viewport.setContentBounds(
+        entries.first.date.toDouble(),
+        entries.last.date.toDouble(),
+      );
+    }
 
     // Draw axis
     _drawAxis(canvas, size);
@@ -237,7 +328,7 @@ class _TimelinePainter extends CustomPainter {
     // Draw entries
     final visible = viewport.getVisibleEntries(entries);
     for (final entry in visible) {
-      _drawEntry(canvas, entry, size);
+      _drawEntry(canvas, entry, size, labelOffsets[entry] ?? 0);
     }
   }
 
@@ -278,7 +369,7 @@ class _TimelinePainter extends CustomPainter {
     }
   }
 
-  void _drawEntry(Canvas canvas, TimelineEntry entry, Size size) {
+  void _drawEntry(Canvas canvas, TimelineEntry entry, Size size, double xOffset) {
     final y = viewport.dateToY(entry.date, size.height);
     if (y < -50 || y > size.height + 50) return;
 
@@ -287,9 +378,9 @@ class _TimelinePainter extends CustomPainter {
 
     // Draw connector line
     final connectorPaint = Paint()
-      ..color = color.withOpacity(0.5)
+      ..color = color.withValues(alpha: 0.5)
       ..strokeWidth = 1;
-    canvas.drawLine(Offset(axisX, y), Offset(axisX + 20, y), connectorPaint);
+    canvas.drawLine(Offset(axisX, y), Offset(axisX + 20 + xOffset, y), connectorPaint);
 
     // Draw node
     final nodePaint = Paint()
@@ -312,7 +403,7 @@ class _TimelinePainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: size.width * 0.7);
 
-    textPainter.paint(canvas, Offset(axisX + 24, y - textPainter.height / 2));
+    textPainter.paint(canvas, Offset(axisX + 24 + xOffset, y - textPainter.height / 2));
   }
 
   double _calculateTickInterval(DateRange range) {

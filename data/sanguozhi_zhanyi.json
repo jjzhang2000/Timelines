@@ -1,0 +1,93 @@
+{
+  "metadata": {
+    "name": "三国志·重要战役",
+    "version": "1.0",
+    "description": "据《三国志》选取的十场重要战役",
+    "colorScheme": {
+      "primary": "#1565C0",
+      "secondary": "#FF6F00"
+    }
+  },
+  "events": [
+    {
+      "date": 200,
+      "label": "官渡之战",
+      "summary": "曹操以少胜多大败袁绍，斩颜良、焚粮草，奠定统一北方之基",
+      "type": "incident",
+      "background": [0, 100, 0],
+      "accent": [144, 238, 144]
+    },
+    {
+      "date": 207,
+      "label": "白狼山之战",
+      "summary": "曹操北征乌桓，郭嘉遗计，张辽斩蹋顿于白狼山下，北方遂定",
+      "type": "incident",
+      "background": [47, 79, 79],
+      "accent": [176, 224, 230]
+    },
+    {
+      "date": 208,
+      "label": "赤壁之战",
+      "summary": "周瑜、刘备联军火烧赤壁大败曹操，三分天下格局由此奠定",
+      "type": "incident",
+      "background": [178, 34, 34],
+      "accent": [255, 69, 0]
+    },
+    {
+      "date": 211,
+      "label": "潼关之战",
+      "summary": "曹操大破马超、韩遂关中联军，用离间计令联军自相疑忌，遂定关中",
+      "type": "incident",
+      "background": [139, 90, 43],
+      "accent": [255, 193, 37]
+    },
+    {
+      "date": 215,
+      "label": "合肥之战",
+      "summary": "张辽率八百步卒突袭孙权十万大军，威震逍遥津，孙权几乎被擒",
+      "type": "incident",
+      "background": [25, 25, 112],
+      "accent": [100, 149, 237]
+    },
+    {
+      "date": 219,
+      "label": "汉中之战",
+      "summary": "刘备与曹操争夺汉中，黄忠斩夏侯渊，曹操退兵，刘备自立汉中王",
+      "type": "incident",
+      "background": [85, 107, 47],
+      "accent": [218, 165, 32]
+    },
+    {
+      "date": 219,
+      "label": "襄樊之战",
+      "summary": "关羽水淹七军、擒于禁、斩庞德，威震华夏；后吕蒙白衣渡江，关羽败走麦城",
+      "type": "incident",
+      "background": [0, 128, 128],
+      "accent": [255, 127, 80]
+    },
+    {
+      "date": 222,
+      "label": "夷陵之战",
+      "summary": "刘备伐吴为关羽报仇，陆逊火烧连营七百里，蜀军大败，刘备退守白帝城",
+      "type": "incident",
+      "background": [160, 82, 45],
+      "accent": [255, 165, 0]
+    },
+    {
+      "date": 228,
+      "label": "街亭之战",
+      "summary": "诸葛亮首次北伐，马谡违令失街亭，全军退汉中，诸葛亮挥泪斩马谡",
+      "type": "incident",
+      "background": [70, 130, 180],
+      "accent": [255, 255, 255]
+    },
+    {
+      "date": 234,
+      "label": "五丈原之战",
+      "summary": "诸葛亮最后一次北伐，与司马懿对峙于五丈原，鞠躬尽瘁，病逝军中",
+      "type": "incident",
+      "background": [75, 0, 130],
+      "accent": [238, 130, 238]
+    }
+  ]
+}
